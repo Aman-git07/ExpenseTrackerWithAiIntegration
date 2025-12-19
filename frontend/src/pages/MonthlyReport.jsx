@@ -1,5 +1,8 @@
 import { useEffect, useState } from "react";
-import { getCurrentMonthExpenses } from "../services/ExpenseService";
+import {
+  getAiInsights,
+  getCurrentMonthExpenses,
+} from "../services/ExpenseService";
 import {
   Box,
   Button,
@@ -26,9 +29,6 @@ export default function MonthlyReport() {
   const [categoryTotals, setCategoryTotals] = useState([]);
   const [aiInsights, setAiInsights] = useState([]);
   const [loadingAI, setLoadingAI] = useState(false);
-  //hugging face token and model value for AI integration
-  const HF_TOKEN = import.meta.env.VITE_HF_TOKEN;
-  const MODEL = "meta-llama/Llama-3.1-8B-Instruct";
 
   useEffect(() => {
     const fetchMonthlyExpenses = async () => {
@@ -52,7 +52,6 @@ export default function MonthlyReport() {
           name,
           value,
         }));
-        //setCategoryTotals(categorySum);
         setCategoryTotals(list);
       } catch (err) {
         console.error("Error while fetching current month expenses: ", err);
@@ -72,56 +71,24 @@ export default function MonthlyReport() {
 
   async function generateAIReport() {
     setLoadingAI(true);
-    setAiInsights("Generating insights...");
+    setAiInsights([]);
     try {
-      const response = await fetch(
-        "https://router.huggingface.co/v1/chat/completions",
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${HF_TOKEN}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            model: MODEL,
-            messages: [
-              {
-                role: "system",
-                content: `
-              You are a financial analysis AI. 
-              Analyze the user's monthly expenses and generate insights.
-              Use ₹ symbol for currency.
-              Return each insight on a new line.
-              Do not use symbols like *, -, • or markdown.
-              Only plain sentences separated by newline.
-              Do NOT return JSON.
-              `,
-              },
-              {
-                role: "user",
-                content: JSON.stringify({
-                  monthlyTotal,
-                  categoryTotals,
-                  expenses,
-                }),
-              },
-            ],
-          }),
-        }
+      const response = await getAiInsights(
+        monthlyTotal,
+        categoryTotals,
+        expenses
       );
+      console.log("ai insights fetched: ", response);
 
-      const data = await response.json();
-      console.log("ai resp: ", data);
-
-      const output = data?.choices?.[0]?.message?.content?.trim();
-      const formattedInsights = output
+      const text = await response.text();
+      const formatted = text
         .split("\n")
-        .map((line) => line.replace(/^[•*-]\s*/, "").trim())
-        .filter((line) => line.length > 0);
+        .map((line) => line.trim())
+        .filter(Boolean);
 
-      setAiInsights(formattedInsights);
-    } catch (err) {
-      setAiInsights("Error while api call: " + err.message);
+      setAiInsights(formatted);
+    } catch (error) {
+      console.error("Error fetching AI insights: ", error);
     }
     setLoadingAI(false);
   }
@@ -140,7 +107,6 @@ export default function MonthlyReport() {
         mt={3}
       >
         {" "}
-        //Using PieChart for chart creation; mapping categories as cells
         <ResponsiveContainer width={500} height={400}>
           <PieChart height={400}>
             <Pie
@@ -166,13 +132,13 @@ export default function MonthlyReport() {
           </PieChart>
         </ResponsiveContainer>
       </Box>
-      //setting AI response; can also use MUI list instead of bullets
+      {/* setting AI response; can also use MUI list instead of bullets */}
       <Button variant="contained" color="secondary" onClick={generateAIReport}>
         Generate AI Insights
       </Button>
       {loadingAI ? (
         <Typography mt={3}>Analyzing your expenses...</Typography>
-      ) : aiInsights ? (
+      ) : aiInsights.length > 0 ? (
         <Paper sx={{ p: 2, mt: 3, background: "#f8f9fa" }}>
           <Typography variant="h6">AI Insights</Typography>
           <Box mt={1}>
@@ -184,7 +150,7 @@ export default function MonthlyReport() {
           </Box>
         </Paper>
       ) : null}
-      //Table for total expenses
+      {/* Table for total expenses */}
       <Typography variant="h5" sx={{ mt: 3, mb: 2 }}>
         Total Expenses This Month: ₹{monthlyTotal}
       </Typography>

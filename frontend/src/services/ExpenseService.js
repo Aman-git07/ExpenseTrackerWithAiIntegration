@@ -37,3 +37,20 @@ export const getExpenseByMonth = (year, month) => {
 export const getCurrentMonthExpenses = () => {
   return axios.get(`${API_URL}/month/current`);
 };
+
+export const getAiInsights = async (monthlyTotal, categoryTotals, expenses) => {
+  const response = await fetch(`${API_URL}/ai/monthly-report`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      monthlyTotal,
+      categoryTotals,
+      expenses,
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error("Failed to fetch AI insights: " + response.status);
+  }
+  return response;
+};
